@@ -1,0 +1,33 @@
+// Esto le dice a Prisma que use JavaScript/TypeScript
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Aquí le decimos que se conecte a PostgreSQL usando tu archivo .env
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. Tabla de Usuarios
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  
+  // Relación: Un usuario puede tener muchos pokémon favoritos
+  favorites Pokemon[]
+}
+
+// 2. Tabla de Pokémon (Caché local)
+// Usaremos el ID real de la Pokédex (ej: Pikachu es 25)
+model Pokemon {
+  id        Int     @id 
+  name      String
+  spriteUrl String? 
+
+  // Relación: Un pokémon puede ser marcado como favorito por muchos usuarios
+  likedBy   User[]
+}
