@@ -1,33 +1,63 @@
-// Esto le dice a Prisma que use JavaScript/TypeScript
+// Configuración estándar
 generator client {
   provider = "prisma-client-js"
 }
 
-// Aquí le decimos que se conecte a PostgreSQL usando tu archivo .env
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// 1. Tabla de Usuarios
+// 1. USUARIOS (Consolidado)
+// Tiene UUID (seguridad), Auth y Relaciones
 model User {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(uuid())
   email     String   @unique
-  password  String
-  name      String?
+  name      String
+  password  String   // Hash de seguridad
+  isActive  Boolean  @default(true)
+  roles     String[] @default(["user"])
+
   createdAt DateTime @default(now())
-  
-  // Relación: Un usuario puede tener muchos pokémon favoritos
-  favorites Pokemon[]
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  favorites Pokemon[] // Tus favoritos (Many-to-Many)
+  teams     Team[]    // Tus equipos guardados (One-to-Many)
 }
 
-// 2. Tabla de Pokémon (Caché local)
-// Usaremos el ID real de la Pokédex (ej: Pikachu es 25)
+// 2. POKÉMON (Caché Local + Datos para IA)
+// Guardamos stats aquí para que el algoritmo de equipos sea RÁPIDO
 model Pokemon {
-  id        Int     @id 
+  id        Int      @id // ID original (ej: 25 Pikachu)
   name      String
-  spriteUrl String? 
+  image     String?
+  types     String[] // Array de strings: ["fire", "flying"]
+  
+  // Stats Base (Vitales para tu KNN y el Team Builder)
+  hp        Int      @default(0)
+  attack    Int      @default(0)
+  defense   Int      @default(0)
+  spAttack  Int      @default(0)
+  spDefense Int      @default(0)
+  speed     Int      @default(0)
 
-  // Relación: Un pokémon puede ser marcado como favorito por muchos usuarios
-  likedBy   User[]
+  // Relaciones inversas
+  likedBy   User[]   // Usuarios que lo tienen en favoritos
+  teams     Team[]   // Equipos donde aparece este Pokémon
+}
+
+// 3. EQUIPOS (La nueva Feature)
+model Team {
+  id        String   @id @default(uuid())
+  name      String   // Ej: "Equipo Anti-Fuego"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relación: Un equipo pertenece a UN usuario
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  // Relación: Un equipo tiene MUCHOS Pokémon (validaremos que sean máx 6 en código)
+  pokemons  Pokemon[]
 }

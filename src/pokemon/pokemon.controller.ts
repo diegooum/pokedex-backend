@@ -1,60 +1,63 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
 import { PokemonService } from './pokemon.service';
-import { CreatePokemonDto } from './dto/create-pokemon.dto';
-import { UpdatePokemonDto } from './dto/update-pokemon.dto';
+import { AuthGuard } from '@nestjs/passport'; // 👈 Importar el Guardia
+import { GetUser } from '../auth/decorators/get-user.decorator'; // 👈 Importar nuestro decorador
+import type { User } from '@prisma/client'; // 👈 Importar el tipo de usuario
 
 @Controller('pokemon')
 export class PokemonController {
   constructor(private readonly pokemonService: PokemonService) {}
 
-  @Post()
-  create(@Body() createPokemonDto: CreatePokemonDto) {
-    return this.pokemonService.create(createPokemonDto);
-  }
-
-  @Post('favorite/:id')
-  toggleFavorite(@Param('id') id: string) {
-    return this.pokemonService.toggleFavorite(+id);
-  }
+  // --- RUTAS PÚBLICAS (Cualquiera puede verlas) ---
 
   @Get()
-  findAll(@Query('limit') limit: string, @Query('offset') offset: string) {
-    // Si no envían nada, usamos valores por defecto (20 pokémon, empezando del 0)
-    return this.pokemonService.findAll(+limit || 20, +offset || 0);
+  findAll(
+    @Query('limit') limit: number,
+    @Query('offset') offset: number
+  ) {
+    return this.pokemonService.findAll(limit, offset);
   }
 
-  @Get('favorites/all') // Ruta especial
-  getFavorites() {
-    return this.pokemonService.getFavorites();
+  @Get('search')
+  searchByName(@Query('term') term: string) {
+    return this.pokemonService.searchByName(term);
   }
 
-  @Get('type/:name')
-  findByType(@Param('name') name: string) {
-    return this.pokemonService.findByType(name);
+  @Get('type/:type')
+  findByType(@Param('type') type: string) {
+    return this.pokemonService.findByType(type);
   }
 
+  // --- RUTAS PRIVADAS (Solo con Token) ---
+
+  // 1. Obtener mis favoritos
+  @Get('favorites')
+  @UseGuards(AuthGuard('jwt')) // 🛡️ ¡ALTO! Solo pasa si tienes Token
+  getFavorites(
+    @GetUser() user: User // 🕵️‍♂️ Extraemos al usuario del token
+  ) {
+    return this.pokemonService.getFavorites(user.id); // Pasamos el ID real
+  }
+
+  // 2. Dar Like/Dislike
+  @Post('favorite/:id')
+  @UseGuards(AuthGuard('jwt')) // 🛡️ ¡ALTO!
+  toggleFavorite(
+    @Param('id') id: string,
+    @GetUser() user: User // 🕵️‍♂️ Extraemos al usuario
+  ) {
+    return this.pokemonService.toggleFavorite(+id, user.id);
+  }
+
+  // 3. Recomendaciones (Las dejamos públicas o privadas? Hagámoslas públicas por ahora)
   @Get(':id/recommendations')
   getRecommendations(@Param('id') id: string) {
     return this.pokemonService.getRecommendations(+id);
   }
 
-  @Get('search/:term') // 👈 Ruta nueva
-  searchByName(@Param('term') term: string) {
-    return this.pokemonService.searchByName(term);
-  }
-
-  @Get(':term') // Cambiamos ':id' por ':term' para que sea más claro
+  // Ruta genérica para ver detalle (debe ir al final para no chocar)
+  @Get(':term')
   findOne(@Param('term') term: string) {
-    return this.pokemonService.findOne(term); // ¡Sin el más (+)! Pasamos el texto tal cual
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updatePokemonDto: UpdatePokemonDto) {
-    return this.pokemonService.update(+id, updatePokemonDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.pokemonService.remove(+id);
+    return this.pokemonService.findOne(term);
   }
 }
